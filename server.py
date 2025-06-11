@@ -13,7 +13,8 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO
 import spidev
-from ai.learning import test_image, save_reference_vector, test_model
+import RPi.GPIO as GPIO  # GPIO 라이브러리 추가
+from ai.learning import test_image, save_reference_vector
 
 # 애플리케이션 설정
 app = Flask(__name__)
@@ -29,6 +30,16 @@ spi.max_speed_hz = 1000000  # 1MHz
 # 상태 파일 설정
 state_file = 'state.json'
 is_running = True
+
+# 펌프 설정
+PUMP_PIN = 17  # GPIO 17 핀 사용
+watering_interval = 0  # 초기 워터링 간격 (초)
+last_watering_time = 0  # 마지막 워터링 시간
+
+# GPIO 설정
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(PUMP_PIN, GPIO.OUT)
+GPIO.output(PUMP_PIN, GPIO.LOW)  # 초기에는 펌프 꺼짐
 
 # MCP3008에서 채널 값 읽기 함수
 def read_adc(channel):
@@ -109,6 +120,40 @@ def save_state(data):
     except Exception as e:
         print(f"상태 파일 저장 오류: {e}")
 
+# 펌프 제어 함수
+def pump_on():
+    GPIO.output(PUMP_PIN, GPIO.HIGH)
+    print("펌프 켜짐")
+
+def pump_off():
+    GPIO.output(PUMP_PIN, GPIO.LOW)
+    print("펌프 꺼짐")
+
+# 워터링 수행 함수
+def do_watering():
+    print("워터링 시작")
+    pump_on()
+    time.sleep(10)  # 10초 동안 펌프 가동
+    pump_off()
+    print("워터링 완료")
+
+# 워터링 체크 스레드
+def watering_thread():
+    global is_running, watering_interval, last_watering_time
+    
+    while is_running:
+        try:
+            # 워터링 간격이 설정되어 있고, 마지막 워터링 이후 충분한 시간이 지났는지 확인
+            if watering_interval > 0 and time.time() - last_watering_time >= watering_interval:
+                do_watering()
+                last_watering_time = time.time()  # 마지막 워터링 시간 업데이트
+            
+            time.sleep(1)  # 1초마다 확인
+        except Exception as e:
+            print(f"워터링 스레드 오류: {e}")
+            pump_off()  # 오류 발생 시 안전하게 펌프 끄기
+            time.sleep(5)
+
 # 센서 데이터 수집 스레드
 def sensor_thread():
     global is_running
@@ -128,6 +173,10 @@ def sensor_thread():
                 temp_adc = read_adc(1)
                 temperature = convert_temp(temp_adc) if temp_adc >= 0 else 0
                 
+                # 상태 데이터 읽기
+                state_data = read_state()
+                ai_message = state_data.get('aiMessage', '데이터를 분석 중입니다...')
+                
                 # 스트림 URL 추가 (MJPEG 스트리머 주소)
                 stream_url = f"http://{get_ip_address()}:8090/?action=stream"
                 
@@ -136,13 +185,14 @@ def sensor_thread():
                 img_path = os.path.join(script_dir, 'img.jpg')
                 capture_image(img_path)
                 ai_message = test_model(img_path)
+
                 
                 # 소켓으로 데이터 전송
                 socketio.emit('plant_data', {
                     'temperature': temperature,
                     'humidity': humidity,
                     'aiMessage': ai_message,
-                    'streamUrl': stream_url
+                    'streamUrl': stream_url  # MJPEG 스트림 URL
                 })
                 
                 # 센서 값 로깅
@@ -187,6 +237,10 @@ def cleanup():
     is_running = False
     time.sleep(0.5)
     try:
+        pump_off()  # 펌프 끄기
+        GPIO.cleanup()  # GPIO 정리
+        print("GPIO 정리 완료")
+        
         spi.close()
         print("SPI 연결 종료")
     except:
@@ -210,10 +264,12 @@ def ping():
         "stream_url": f"http://{get_ip_address()}:8090/?action=stream"
     })
 
-# 데이터 수신 엔드포인트
+# 데이터 수신 엔드포인트 - 여기에 펌프 제어 로직 추가
 @app.route('/data', methods=['POST', 'OPTIONS'])
 def receive_data():
     from flask import request, make_response
+    
+    global watering_interval, last_watering_time
     
     if request.method == 'OPTIONS':
         response = make_response()
@@ -224,6 +280,16 @@ def receive_data():
     try:
         data = request.get_json()
         print('데이터 수신:', data)
+        
+        # value 값이 있으면 워터링 간격으로 설정
+        if 'value' in data:
+            try:
+                watering_interval = int(data['value'])
+                last_watering_time = time.time()  # 현재 시간으로 마지막 워터링 시간 초기화
+                print(f"워터링 간격이 {watering_interval}초로 설정됨")
+            except:
+                print("잘못된 value 값")
+        
         save_state(data)  # 데이터를 파일에 저장
         return jsonify({'status': 'ok'})
     except Exception as e:
@@ -264,6 +330,11 @@ def main():
         sensor_thread_obj = threading.Thread(target=sensor_thread)
         sensor_thread_obj.daemon = True
         sensor_thread_obj.start()
+        
+        # 워터링 스레드 시작
+        water_thread_obj = threading.Thread(target=watering_thread)
+        water_thread_obj.daemon = True
+        water_thread_obj.start()
         
         # 서버 IP 출력
         ip = get_ip_address()
