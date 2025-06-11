@@ -51,7 +51,6 @@ export default function AddPlantScreen({ setAddPlant }) {
     try {
       await savePlant(plantData);
       Alert.alert('성공', '새 식물이 추가되었습니다.');
-      router.back();
     } catch (error: any) {
       console.error('식물 추가 실패:', error);
       Alert.alert('오류', error.message || '식물 추가에 실패했습니다.');

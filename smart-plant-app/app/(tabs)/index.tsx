@@ -21,7 +21,6 @@ export default function HomeScreen() {
   const fetchPlants = async () => {
     const loadedPlants = await loadPlants();
     setPlants(loadedPlants);
-
     console.log(loadPlants);
   };
 
@@ -65,6 +64,9 @@ export default function HomeScreen() {
       onDelete={() => handleDeletePlant(item.id)}
     />
   );
+  useEffect(() => {
+    fetchPlants();
+  }, [addPlant]);
 
   return (
     <View style={styles.container}>

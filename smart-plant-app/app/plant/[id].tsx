@@ -10,6 +10,7 @@ import {
   Dimensions,
   Alert,
   Button,
+  ScrollView,
 } from 'react-native';
 
 import { useLocalSearchParams } from 'expo-router';
@@ -52,12 +53,41 @@ const PlantDetailScreen = () => {
       if (!response.ok) throw new Error('요청 실패');
       Alert.alert('성공', `값이 ${value}로 설정되었습니다.`);
     } catch (err) {
-      Alert.alert(
-        '오류',
-        `값을 전송하는 중 오류 발생: ${(err as Error).message}`
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size='large' color='#66895D' />
+          <Text style={styles.loadingText}>식물 정보를 불러오는 중...</Text>
+        </View>
       );
     }
   };
+
+  const getWaterInterval = async () => {
+    try {
+      const response = await fetch(
+        'http://' + plantData.flaskServerIp + '/watering-interval',
+        {
+          method: 'GET',
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error('요청 실패');
+      setWateringInterval(Number(data.value));
+    } catch (err) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size='large' color='#66895D' />
+          <Text style={styles.loadingText}>식물 정보를 불러오는 중...</Text>
+        </View>
+      );
+    }
+  };
+
+  useEffect(() => {
+    getWaterInterval();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -126,7 +156,7 @@ const PlantDetailScreen = () => {
   }, [wateringInterval]);
 
   const adjustInterval = (amount: number) => {
-    setWateringInterval((prev) => Math.max(1, Math.min(14, prev + amount)));
+    setWateringInterval((prev) => Math.max(1, Math.min(100, prev + amount)));
   };
 
   const testConnection = async () => {
@@ -148,7 +178,12 @@ const PlantDetailScreen = () => {
 
       setPlantState((prev) => ({ ...prev, streamUrl: data.stream_url }));
     } catch (error) {
-      Alert.alert('서버 연결 실패', `오류: ${(error as Error).message}`);
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size='large' color='#66895D' />
+          <Text style={styles.loadingText}>식물 정보를 불러오는 중...</Text>
+        </View>
+      );
     }
   };
 
@@ -178,78 +213,80 @@ const PlantDetailScreen = () => {
 `;
 
   return (
-    <View style={styles.container}>
-      {/* 카메라 박스 */}
-      {plantState.streamUrl ? (
-        <View style={styles.cameraFeed}>
-          <WebView
-            source={{ html: mjpegHtml }}
-            style={{ flex: 1 }}
-            onError={() => setStreamError(true)}
-            originWhitelist={['*']}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            startInLoadingState={true}
-          />
-        </View>
-      ) : (
-        <View style={styles.cameraPlaceholder}>
-          <Text>스트림 연결 중...</Text>
-        </View>
-      )}
+    <ScrollView>
+      <View style={styles.container}>
+        {/* 카메라 박스 */}
+        {plantState.streamUrl ? (
+          <View style={styles.cameraFeed}>
+            <WebView
+              source={{ html: mjpegHtml }}
+              style={{ flex: 1 }}
+              onError={() => setStreamError(true)}
+              originWhitelist={['*']}
+              javaScriptEnabled={true}
+              domStorageEnabled={true}
+              startInLoadingState={true}
+            />
+          </View>
+        ) : (
+          <View style={styles.cameraPlaceholder}>
+            <Text>스트림 연결 중...</Text>
+          </View>
+        )}
 
-      <Text style={styles.aiMessage}>
-        {plantState.aiMessage ?? 'AI 메시지입니다.'}
-      </Text>
+        <Text style={styles.aiMessage}>
+          {plantState.aiMessage ?? 'AI 메시지입니다.'}
+        </Text>
 
-      {/* 환경 정보 박스들 */}
-      <View style={styles.envRow}>
-        <View style={styles.envBox}>
-          <FontAwesome name='thermometer-half' size={30} color='red' />
-          <Text style={styles.envLabel}>온도</Text>
-          <Text style={styles.envValue}>
-            {plantState.temperature.toFixed(2) ?? '0'}℃
-          </Text>
-        </View>
-
-        <View style={styles.envBox}>
-          <FontAwesome name='tint' size={30} color='#007AFF' />
-          <Text style={styles.envLabel}>습도</Text>
-          <Text style={styles.envValue}>
-            {plantState.temperature.toFixed(2) ?? '0'}%
-          </Text>
-        </View>
-      </View>
-
-      {/* 물 주기 조절 박스 */}
-      <View style={styles.circleCard}>
-        <Text style={styles.sectionTitle}>물 주는 주기 (초)</Text>
-
-        <View style={styles.sliderContainer}>
-          <TouchableOpacity
-            onPress={() => adjustInterval(-1)}
-            style={styles.controlButton}
-          >
-            <Text style={styles.controlButtonText}>-</Text>
-          </TouchableOpacity>
-
-          <View style={styles.circle}>
-            <Text style={styles.intervalText}>{wateringInterval}초</Text>
+        {/* 환경 정보 박스들 */}
+        <View style={styles.envRow}>
+          <View style={styles.envBox}>
+            <FontAwesome name='thermometer-half' size={30} color='red' />
+            <Text style={styles.envLabel}>온도</Text>
+            <Text style={styles.envValue}>
+              {plantState.temperature.toFixed(2) ?? '0'}℃
+            </Text>
           </View>
 
-          <TouchableOpacity
-            onPress={() => adjustInterval(1)}
-            style={styles.controlButton}
-          >
-            <Text style={styles.controlButtonText}>+</Text>
-          </TouchableOpacity>
+          <View style={styles.envBox}>
+            <FontAwesome name='tint' size={30} color='#007AFF' />
+            <Text style={styles.envLabel}>습도</Text>
+            <Text style={styles.envValue}>
+              {plantState.humidity.toFixed(2) ?? '0'}%
+            </Text>
+          </View>
         </View>
 
-        <Text style={styles.subText}>
-          매 {wateringInterval}초 마다 물을 줄게요
-        </Text>
+        {/* 물 주기 조절 박스 */}
+        <View style={styles.circleCard}>
+          <Text style={styles.sectionTitle}>물 주는 주기 (초)</Text>
+
+          <View style={styles.sliderContainer}>
+            <TouchableOpacity
+              onPress={() => adjustInterval(-10)}
+              style={styles.controlButton}
+            >
+              <Text style={styles.controlButtonText}>-</Text>
+            </TouchableOpacity>
+
+            <View style={styles.circle}>
+              <Text style={styles.intervalText}>{wateringInterval}초</Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => adjustInterval(10)}
+              style={styles.controlButton}
+            >
+              <Text style={styles.controlButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.subText}>
+            매 {wateringInterval}초 마다 물을 줄게요
+          </Text>
+        </View>
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
@@ -354,8 +391,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'white',
     borderRadius: 30,
-    width: 40,
-    height: 40,
+    width: 100,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
     marginHorizontal: 20,
@@ -375,7 +412,7 @@ const styles = StyleSheet.create({
     borderColor: '#66895D',
   },
   intervalText: {
-    fontSize: 22,
+    fontSize: 30,
     fontWeight: 'bold',
     color: '#333',
   },

@@ -30,11 +30,7 @@ const PlantContainer: React.FC<PlantContainerProps> = ({
       <View style={styles.header}>
         <View style={styles.statusDot} />
         <Text style={styles.plantName}>{plant.name}</Text>
-        <Text>{plant.flaskServerIp}</Text>
       </View>
-      <Text style={styles.lastModified}>
-        {lastModifiedDate} {lastModifiedTime}에 수정됨
-      </Text>
       <View style={styles.buttonsContainer}>
         <TouchableOpacity style={styles.button} onPress={onPress}>
           <MaterialCommunityIcons name='redo' size={18} color='white' />

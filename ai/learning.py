@@ -41,15 +41,15 @@ def test_image(test_img_path, reference_vector_path):
     reference_vector = np.load(reference_vector_path)
     test_vector = get_embedding(test_img_path)
     similarity = cosine_similarity(test_vector, reference_vector)
-    print(f"🔍 유사도: {similarity:.4f}")
-    return "신선한 콩나물" if similarity >= 0.3 else "썩은 콩나물"
+
+    return  str(int(similarity * 100)) + "% 신선한 콩나물" if similarity >= 0.3 else "썩은 콩나물"
 
 # 외부에서 호출할 함수
 def test_model():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     fresh_dir = os.path.join(script_dir, 'vectordataset')
     reference_vector_path = os.path.join(script_dir, 'reference_vector.npy')
-    test_img_path = os.path.join(script_dir, 'img.jpg')  # 혹은 test.jpg 등
+    test_img_path = os.path.join(script_dir, 'sprout.jpg')  # 혹은 test.jpg 등
 
     if not os.path.exists(reference_vector_path):
         print("📁 reference_vector.npy 파일이 없어 새로 생성합니다.")
