@@ -74,7 +74,7 @@ const PlantDetailScreen = () => {
       const data = await response.json();
 
       if (!response.ok) throw new Error('요청 실패');
-      setWateringInterval(Number(data.value));
+      setWateringInterval(Number(data.wateringInteval ?? 0));
     } catch (err) {
       return (
         <View style={styles.loadingContainer}>
@@ -126,9 +126,11 @@ const PlantDetailScreen = () => {
           typeof data.humidity === 'number'
             ? data.humidity
             : prevState.humidity,
-        aiMessage: data.aiMessage || prevState.aiMessage,
+        aiMessage: Number(data.aiMessage) || prevState.aiMessage,
         streamUrl: data.streamUrl || prevState.streamUrl,
       }));
+      if (data.aiMessage && Number(data.aiMessage) < 35)
+        Alert.alert('식물에 주의가 필요합니다.');
     });
 
     const timer = setInterval(() => {
@@ -270,7 +272,7 @@ const PlantDetailScreen = () => {
             </TouchableOpacity>
 
             <View style={styles.circle}>
-              <Text style={styles.intervalText}>{wateringInterval}초</Text>
+              <Text style={styles.intervalText}>{wateringInterval ?? 0}초</Text>
             </View>
 
             <TouchableOpacity
@@ -293,6 +295,22 @@ const PlantDetailScreen = () => {
 export default PlantDetailScreen;
 
 const styles = StyleSheet.create({
+  modal: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#f0f2f5', // 배경색
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
   container: {
     flex: 1,
     padding: 20,

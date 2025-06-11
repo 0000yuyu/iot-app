@@ -40,7 +40,8 @@
     "react-native-webview": "^13.13.5",
     "smart-plant-app": "file:",
     "socket.io-client": "^4.8.1",
-    "yup": "^1.6.1"
+    "yup": "^1.6.1",
+    "expo-notifications": "~0.31.3"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
