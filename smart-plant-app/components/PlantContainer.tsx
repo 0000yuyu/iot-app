@@ -37,22 +37,12 @@ const PlantContainer: React.FC<PlantContainerProps> = ({
       </Text>
       <View style={styles.buttonsContainer}>
         <TouchableOpacity style={styles.button} onPress={onPress}>
-          <MaterialCommunityIcons name='redo' size={18} color='#007AFF' />
-          <Text style={styles.buttonText}>동면해제</Text>
+          <MaterialCommunityIcons name='redo' size={18} color='white' />
+          <Text style={styles.buttonText}>바로 가기</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconButton} onPress={onDelete}>
           <MaterialCommunityIcons
             name='delete-outline'
-            size={18}
-            color='#666'
-          />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconButton}>
-          <MaterialCommunityIcons name='link-variant' size={18} color='#666' />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconButton}>
-          <MaterialCommunityIcons
-            name='dots-horizontal'
             size={18}
             color='#666'
           />
@@ -84,7 +74,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#4CAF50', // 초록색 (활성화 상태)
+    backgroundColor: '#66895D',
     marginRight: 5,
   },
   plantName: {
@@ -105,13 +95,13 @@ const styles = StyleSheet.create({
   button: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E0F2FF', // 연한 파란색
+    backgroundColor: '#FFD47D', // 연한 파란색
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 20,
   },
   buttonText: {
-    color: '#007AFF',
+    color: 'white',
     fontSize: 13,
     fontWeight: 'bold',
     marginLeft: 5,

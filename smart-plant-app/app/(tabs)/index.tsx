@@ -12,9 +12,11 @@ import { loadPlants, deletePlant } from '../../utils/storage';
 import { PlantData } from '../../utils/types';
 
 import PlantContainer from '../../components/PlantContainer'; // PlantContainer 컴포넌트 임포트
+import AddPlantScreen from '../addPlant';
 
 export default function HomeScreen() {
   const [plants, setPlants] = useState<PlantData[]>([]);
+  const [addPlant, setAddPlant] = useState<Boolean>(false);
 
   const fetchPlants = async () => {
     const loadedPlants = await loadPlants();
@@ -29,10 +31,6 @@ export default function HomeScreen() {
       fetchPlants();
     }, [])
   );
-
-  const handleAddPlant = () => {
-    router.push('/addPlant');
-  };
 
   const handlePressPlant = (plantId: string) => {
     router.push(`/plant/${plantId}`);
@@ -63,21 +61,29 @@ export default function HomeScreen() {
   const renderItem = ({ item }: { item: PlantData }) => (
     <PlantContainer
       plant={item}
-      onPress={() => handlePressPlant(item.portNumber)} // portNumber를 id로 사용
-      onDelete={() => handleDeletePlant(item.portNumber)}
+      onPress={() => handlePressPlant(item.id)}
+      onDelete={() => handleDeletePlant(item.id)}
     />
   );
 
   return (
     <View style={styles.container}>
+      {addPlant && (
+        <View style={styles.modalOverlay}>
+          <AddPlantScreen setAddPlant={setAddPlant} />
+        </View>
+      )}
       <Text style={styles.header}>최근 실행한 컨테이너</Text>
-      <TouchableOpacity style={styles.addButton} onPress={handleAddPlant}>
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={() => setAddPlant(true)}
+      >
         <Text style={styles.addButtonText}>+</Text>
       </TouchableOpacity>
       <FlatList
         data={plants}
         renderItem={renderItem}
-        keyExtractor={(item) => item.portNumber}
+        keyExtractor={(item) => item.id}
         numColumns={2} // 두 개의 열로 표시
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={
@@ -94,6 +100,17 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
   container: {
     flex: 1,
     padding: 20,
@@ -110,7 +127,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 20,
     right: 20,
-    backgroundColor: '#007AFF', // 파란색 버튼
+    backgroundColor: '#66895D', // 파란색 버튼
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -140,7 +157,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   allContainersButtonText: {
-    color: '#007AFF',
     fontSize: 16,
     fontWeight: 'bold',
   },

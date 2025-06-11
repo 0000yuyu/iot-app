@@ -13,28 +13,21 @@ import {
 import { router } from 'expo-router';
 import { savePlant } from '../utils/storage';
 
-export default function AddPlantScreen() {
+export default function AddPlantScreen({ setAddPlant }) {
   const [name, setName] = useState('');
-  const [portNumber, setPortNumber] = useState('');
+  const [id, setId] = useState('');
   const [flaskServerIp, setFlaskServerIp] = useState('');
   const [initialMoisture, setInitialMoisture] = useState('');
   const [initialLight, setInitialLight] = useState('');
 
   const handleSubmit = async () => {
-    // 유효성 검사
-    if (
-      !name ||
-      !portNumber ||
-      !flaskServerIp ||
-      !initialMoisture ||
-      !initialLight
-    ) {
+    if (!name || !id || !flaskServerIp) {
       Alert.alert('모든 항목을 입력해주세요.');
       return;
     }
 
-    if (!/^\d+$/.test(portNumber)) {
-      Alert.alert('포트 번호는 숫자만 입력해주세요.');
+    if (!/^\d+$/.test(id)) {
+      Alert.alert('아이디는 숫자만 입력해주세요.');
       return;
     }
 
@@ -49,7 +42,7 @@ export default function AddPlantScreen() {
 
     const plantData = {
       name,
-      portNumber,
+      id,
       flaskServerIp,
       initialMoisture: Number(initialMoisture),
       initialLight: Number(initialLight),
@@ -63,15 +56,24 @@ export default function AddPlantScreen() {
       console.error('식물 추가 실패:', error);
       Alert.alert('오류', error.message || '식물 추가에 실패했습니다.');
     }
+
+    setAddPlant(false);
   };
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.form}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => setAddPlant(false)}
+          >
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+
           <Text style={styles.label}>식물 이름</Text>
           <TextInput
             style={styles.input}
@@ -83,9 +85,9 @@ export default function AddPlantScreen() {
           <Text style={styles.label}>식물 아이디 (포트 번호)</Text>
           <TextInput
             style={styles.input}
-            value={portNumber}
-            onChangeText={setPortNumber}
-            placeholder='예: 123'
+            value={id}
+            onChangeText={setId}
+            placeholder='고유한 id를 지정해주세요!'
             keyboardType='numeric'
           />
 
@@ -95,25 +97,6 @@ export default function AddPlantScreen() {
             value={flaskServerIp}
             onChangeText={setFlaskServerIp}
             placeholder='예: 192.168.0.1:5000 또는 localhost:5000'
-            autoCapitalize='none'
-          />
-
-          <Text style={styles.label}>초기 물 세기 (°C)</Text>
-          <TextInput
-            style={styles.input}
-            value={initialMoisture}
-            onChangeText={setInitialMoisture}
-            placeholder='예: 25'
-            keyboardType='numeric'
-          />
-
-          <Text style={styles.label}>초기 광량 (%)</Text>
-          <TextInput
-            style={styles.input}
-            value={initialLight}
-            onChangeText={setInitialLight}
-            placeholder='예: 50'
-            keyboardType='numeric'
           />
 
           <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
@@ -126,50 +109,63 @@ export default function AddPlantScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f0f2f5',
-  },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
   },
   form: {
+    width: '100%',
+    display: 'flex',
     backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
+    borderRadius: 12,
+    padding: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   label: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 5,
-    marginTop: 10,
+    marginBottom: 8,
+    width: '100%',
+    marginTop: 16,
     color: '#333',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 5,
-    padding: 10,
-    fontSize: 16,
-    marginBottom: 5,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    fontSize: 17,
+    marginBottom: 8,
+    width: 600,
   },
   submitButton: {
-    backgroundColor: '#4CAF50',
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: '#66895D',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 30,
+    width: '100%',
   },
   submitButtonText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 10,
+    padding: 8,
+  },
+  closeButtonText: {
+    fontSize: 22,
+    color: '#666',
   },
 });

@@ -7,8 +7,8 @@ export const savePlant = async (newPlant: PlantData) => {
   try {
     const existingPlants = await loadPlants();
     // 중복 포트 번호 체크 (선택 사항)
-    if (existingPlants.some((p) => p.portNumber === newPlant.portNumber)) {
-      throw new Error('이미 존재하는 포트 번호입니다.');
+    if (existingPlants.some((p) => p.id === newPlant.id)) {
+      throw new Error('이미 존재하는 아이디입니다.');
     }
     const updatedPlants = [...existingPlants, newPlant];
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedPlants));
@@ -28,11 +28,11 @@ export const loadPlants = async (): Promise<PlantData[]> => {
   }
 };
 
-export const deletePlant = async (portNumber: string) => {
+export const deletePlant = async (plantId: string) => {
   try {
     const existingPlants = await loadPlants();
     const updatedPlants = existingPlants.filter(
-      (plant) => plant.portNumber !== portNumber
+      (plant) => plant.id !== plantId
     );
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedPlants));
   } catch (error) {
