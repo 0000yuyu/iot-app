@@ -14,7 +14,7 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 import spidev
 import RPi.GPIO as GPIO  # GPIO 라이브러리 추가
-from ai.learning import test_image, save_reference_vector
+from ai.learning import test_model
 
 # 애플리케이션 설정
 app = Flask(__name__)
@@ -33,13 +33,16 @@ is_running = True
 
 # 펌프 설정
 PUMP_PIN = 17  # GPIO 17 핀 사용
-watering_interval = 0  # 초기 워터링 간격 (초)
+watering_interval = 20  # 초기 워터링 간격 (초)
 last_watering_time = 0  # 마지막 워터링 시간
+
+moisture_percent = 10
 
 # GPIO 설정
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(PUMP_PIN, GPIO.OUT)
-GPIO.output(PUMP_PIN, GPIO.LOW)  # 초기에는 펌프 꺼짐
+GPIO.output(PUMP_PIN, GPIO.HIGH)  # 초기에는 펌프 꺼짐
+print(f"    DEBUG: GPIO 초기 상태: 핀 {PUMP_PIN}의 값은 {GPIO.input(PUMP_PIN)}")
 
 # MCP3008에서 채널 값 읽기 함수
 def read_adc(channel):
@@ -61,13 +64,15 @@ def convert_temp(adc_value):
         # 아날로그 값을 전압으로 변환 (0-1023 -> 0-3.3V)
         voltage = adc_value * 3.3 / 1023
         # 전압을 온도로 변환 (TMP36GT9Z: 10mV/°C 비율, 0.5V 오프셋)
-        temperature = (voltage - 0.5) * 100
+        temperature = (voltage - 0.5) * 100 + 22  # 22도 보정 (실제 온도에 맞게 조정)
         return temperature
     except:
         return 0  # 오류 시 0 반환
 
 # 토양 습도 센서 값을 퍼센트로 변환
 def convert_humidity(adc_value):
+    global moisture_percent
+
     try:
         # 센서 값의 범위 설정 (이 값은 실제 센서에 맞게 조정)
         max_value = 1023  # 완전 건조 상태
@@ -122,41 +127,48 @@ def save_state(data):
 
 # 펌프 제어 함수
 def pump_on():
-    GPIO.output(PUMP_PIN, GPIO.HIGH)
+    GPIO.setup(PUMP_PIN, GPIO.OUT)  # 출력 모드로 변경
+    GPIO.output(PUMP_PIN, GPIO.LOW)
     print("펌프 켜짐")
 
 def pump_off():
-    GPIO.output(PUMP_PIN, GPIO.LOW)
+    GPIO.output(PUMP_PIN, GPIO.HIGH)
+    GPIO.setup(PUMP_PIN, GPIO.IN) # 입력 모드로 변경함으로써 강제 펌프 off
     print("펌프 꺼짐")
 
 # 워터링 수행 함수
 def do_watering():
     print("워터링 시작")
     pump_on()
-    time.sleep(10)  # 10초 동안 펌프 가동
+    time.sleep(15)  # 15초 동안 펌프 가동
     pump_off()
     print("워터링 완료")
 
 # 워터링 체크 스레드
 def watering_thread():
-    global is_running, watering_interval, last_watering_time
+    global is_running, watering_interval, last_watering_time, moisture_percent
     
+    # watering_thread 함수 시작 시 추가
+    print(f"DEBUG: 워터링 스레드 시작: 간격={watering_interval}초, 마지막 워터링={last_watering_time}")
+
     while is_running:
         try:
+            print(f"    DEBUG: 현재 워터링 간격: {watering_interval}초")
             # 워터링 간격이 설정되어 있고, 마지막 워터링 이후 충분한 시간이 지났는지 확인
-            if watering_interval > 0 and time.time() - last_watering_time >= watering_interval:
+            if (watering_interval > 0 and time.time() - last_watering_time >= watering_interval) or (moisture_percent < 1):
                 do_watering()
                 last_watering_time = time.time()  # 마지막 워터링 시간 업데이트
+                print(f"    DEBUG: 마지막 워터링 시간: {last_watering_time}")
             
             time.sleep(1)  # 1초마다 확인
         except Exception as e:
             print(f"워터링 스레드 오류: {e}")
-            pump_off()  # 오류 발생 시 안전하게 펌프 끄기
+            pump_off()  # 오류 발생 시 펌프 끄기
             time.sleep(5)
 
 # 센서 데이터 수집 스레드
 def sensor_thread():
-    global is_running
+    global is_running, watering_interval
     last_data_time = 0
     
     while is_running:
@@ -182,21 +194,35 @@ def sensor_thread():
                 
                 # 이미지 캡처 및 AI 테스트
                 script_dir = os.path.dirname(os.path.abspath(__file__))
-                img_path = os.path.join(script_dir, 'img.jpg')
-                capture_image(img_path)
-                ai_message = test_model(img_path)
-
+                img_path = os.path.join(script_dir, 'ai', 'img.jpg')  # ai 폴더에 저장
                 
-                # 소켓으로 데이터 전송
+                # ai 디렉토리 확인 및 생성
+                ai_dir = os.path.join(script_dir, 'ai')
+                if not os.path.exists(ai_dir):
+                    try:
+                        os.makedirs(ai_dir)
+                        print(f"ai 디렉토리 생성됨: {ai_dir}")
+                    except Exception as e:
+                        print(f"디렉토리 생성 오류: {e}")
+                
+                capture_image(img_path)
+                
+                try:
+                    ai_message = test_model()  # 파라미터 없이 호출
+                except Exception as e:
+                    print(f"AI 모델 테스트 오류: {e}")
+                
+                # 소켓으로 데이터 전송 (급수 간격 포함)
                 socketio.emit('plant_data', {
                     'temperature': temperature,
                     'humidity': humidity,
                     'aiMessage': ai_message,
-                    'streamUrl': stream_url  # MJPEG 스트림 URL
+                    'streamUrl': stream_url,
+                    #'wateringInterval': watering_interval  # 급수 간격 전송
                 })
                 
                 # 센서 값 로깅
-                print(f"센서 데이터 - 온도: {temperature:.2f}°C, 습도: {humidity:.2f}%")
+                print(f"센서 데이터 - 온도: {temperature:.2f}°C, 습도: {humidity:.2f}%, 급수 간격: {watering_interval}초")
                 
                 last_data_time = current_time
                 
@@ -222,14 +248,37 @@ def get_ip_address():
 
 # 이미지 캡처 함수
 def capture_image(img_path):
-    # OpenCV 또는 다른 라이브러리를 사용하여 이미지 캡처
-    import cv2
-    cap = cv2.VideoCapture(0)
-    ret, frame = cap.read()
-    if ret:
-        cv2.imwrite(img_path, frame)
-    cap.release()
-
+    # 디렉토리 확인 및 생성
+    import os
+    import requests
+    
+    img_dir = os.path.dirname(img_path)
+    if not os.path.exists(img_dir):
+        try:
+            os.makedirs(img_dir)
+            print(f"디렉토리 생성: {img_dir}")
+        except Exception as e:
+            print(f"디렉토리 생성 오류: {e}")
+            return False
+    
+    try:
+        # MJPEG 스트리머의 스냅샷 URL에서 이미지 가져오기
+        ip = get_ip_address()
+        snapshot_url = f"http://{ip}:8090/?action=snapshot"
+        
+        response = requests.get(snapshot_url, timeout=5)
+        
+        if response.status_code == 200:
+            # 이미지 저장
+            with open(img_path, 'wb') as f:
+                f.write(response.content)
+            print(f"`이미지가 성`공적으로 저장되었습니다: {img_path}")
+            return True
+        else:
+            print(f"스트림 응답 오류: {response.status_code}")
+    except Exception as e:
+        print(f"스트림 캡처 오류: {e}")
+    
 # 리소스 정리 함수
 def cleanup():
     global is_running
@@ -264,6 +313,17 @@ def ping():
         "stream_url": f"http://{get_ip_address()}:8090/?action=stream"
     })
 
+# 급수 간격 설정값 조회 라우터
+@app.route('/watering-interval', methods=['GET'])
+def get_watering_interval():
+    global watering_interval, last_watering_time
+    return jsonify({
+        "status": "ok",
+        "watering_interval": watering_interval,
+        "last_watering_time": last_watering_time,
+        "next_watering_in": max(0, watering_interval - (time.time() - last_watering_time)) if watering_interval > 0 else 0
+    })
+
 # 데이터 수신 엔드포인트 - 여기에 펌프 제어 로직 추가
 @app.route('/data', methods=['POST', 'OPTIONS'])
 def receive_data():
@@ -291,7 +351,10 @@ def receive_data():
                 print("잘못된 value 값")
         
         save_state(data)  # 데이터를 파일에 저장
-        return jsonify({'status': 'ok'})
+        return jsonify({
+            'status': 'ok', 
+            'watering_interval': watering_interval
+        })
     except Exception as e:
         print(f"데이터 처리 오류: {e}")
         return jsonify({'status': 'error', 'message': str(e)})
@@ -316,7 +379,8 @@ def handle_connect():
         'temperature': temperature,
         'humidity': humidity,
         'aiMessage': state_data.get('aiMessage', '데이터를 분석 중입니다...'),
-        'streamUrl': stream_url
+        'streamUrl': stream_url,
+        'wateringInterval': watering_interval  # 급수 간격도 함께 전송
     })
 
 @socketio.on('disconnect')
